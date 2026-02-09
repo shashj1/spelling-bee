@@ -6,7 +6,7 @@ import {
   getStoredFirebaseConfig, saveFirebaseConfig, initFirebase, isFirebaseReady,
   getApiKeys, saveApiKeys, getGroups, saveGroups, getWeekData, saveWeekData,
   uploadAudio, logPractice, getPracticeData, getChildren,
-  saveChildren, getCurrentWeekId
+  saveChildren, getCurrentWeekId, getWeekDisplayDate
 } from './firebase';
 import { generateSpellingContent, extractWordsFromPhoto, generateSpeech } from './services/ai';
 import { playAudioUrl, stopAudio, speakText, playMusic, stopMusic } from './services/audio';
@@ -120,7 +120,7 @@ function SplashScreen({ groups, weekData, onSelectGroup, onUpload, onNavigate })
         <button className="btn btn-outline" onClick={() => onNavigate('upload')}>📤 Upload new words</button>
         <button className="btn btn-outline" onClick={() => onNavigate('settings')}>⚙️ Settings</button>
       </div>
-      <p style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--text-light)' }}>Week of {getCurrentWeekId()}</p>
+      <p style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--text-light)' }}>{getWeekDisplayDate()}</p>
     </div>
   );
 }
@@ -542,7 +542,7 @@ function PracticeTracker({ groups, onBack }) {
     <div className="app-bg"><div className="container page-content">
       <button className="back-btn" onClick={onBack}>← Back</button>
       <h2 style={{ fontFamily: 'Fredoka', color: 'var(--primary)', marginBottom: '8px' }}>📋 Who's Practised This Week?</h2>
-      <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>Week of {getCurrentWeekId()}</p>
+      <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>{getWeekDisplayDate()}</p>
       {groups.map(g => {
         const gData = practiceData[g];
         const children = gData?.children ? Object.entries(gData.children) : [];

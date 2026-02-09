@@ -83,30 +83,61 @@ export async function saveGroups(groups) {
 // --- Week Data (spelling lists, sentences, stories, per group) ---
 function getWeekId() {
   // Get the current "spelling week" — runs Thursday noon to Thursday noon UK time
-  const now = new Date();
-  // Convert to UK time
-  const ukTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  const day = ukTime.getDay(); // 0=Sun, 4=Thu
-  const hour = ukTime.getHours();
-
-  // If it's Thursday after noon, or any day after Thursday (Fri-Wed), we're in the new week
   // We use the Thursday date as the week ID
-  const d = new Date(ukTime);
+  const now = new Date();
+  
+  // Get current UK time components reliably using Intl
+  const ukFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    weekday: 'short'
+  });
+  const parts = ukFormatter.formatToParts(now);
+  const get = (type) => parts.find(p => p.type === type)?.value;
+  
+  const year = parseInt(get('year'));
+  const month = parseInt(get('month')) - 1; // 0-indexed
+  const dayOfMonth = parseInt(get('day'));
+  const hour = parseInt(get('hour'));
+  const weekday = get('weekday'); // Mon, Tue, etc.
+  
+  // Map weekday string to number (0=Sun style but we need Thu=0 offset)
+  const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+  const day = dayMap[weekday] ?? 0;
+  
+  // Work out the Thursday that starts this spelling week
+  const d = new Date(year, month, dayOfMonth);
+  
   if (day === 4 && hour >= 12) {
-    // It's Thursday afternoon — this Thursday is the start
+    // Thursday afternoon — this Thursday is the start
   } else if (day > 4) {
-    // Fri or Sat — go back to Thursday
+    // Fri or Sat — go back to this week's Thursday
     d.setDate(d.getDate() - (day - 4));
   } else {
     // Sun(0), Mon(1), Tue(2), Wed(3), or Thu morning
     // Go back to last Thursday
-    d.setDate(d.getDate() - ((day + 3) % 7));
+    const daysBack = day < 4 ? (day + 3) : 0;
+    d.setDate(d.getDate() - daysBack);
   }
+  
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function getCurrentWeekId() {
   return getWeekId();
+}
+
+export function getWeekDisplayDate() {
+  const weekId = getWeekId();
+  const [y, m, d] = weekId.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const day = date.getDate();
+  const suffix = (day === 1 || day === 21 || day === 31) ? 'st' 
+    : (day === 2 || day === 22) ? 'nd' 
+    : (day === 3 || day === 23) ? 'rd' : 'th';
+  const monthName = date.toLocaleString('en-GB', { month: 'long' });
+  return `Spellings released on Thursday ${day}${suffix} ${monthName}`;
 }
 
 export async function getWeekData(groupName) {
