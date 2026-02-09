@@ -105,8 +105,8 @@ function SplashScreen({ groups, weekData, onSelectGroup, onUpload, onNavigate })
           return (
             <button key={group} className={`group-btn ${hasData ? 'ready' : 'not-ready'}`}
               onClick={() => hasData ? onSelectGroup(group) : onUpload(group)}>
-              <span>
-                {group}
+              <span style={{ textAlign: 'left', flex: 1 }}>
+                <span style={{ display: 'block' }}>{group}</span>
                 {!hasData && <span style={{ display: 'block', fontSize: '0.8rem', fontWeight: 400, opacity: 0.7 }}>No words yet this week</span>}
                 {hasData && <span style={{ display: 'block', fontSize: '0.8rem', fontWeight: 400, opacity: 0.8 }}>{hasData.words.length} words ready ✓</span>}
               </span>
