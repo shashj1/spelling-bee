@@ -93,20 +93,41 @@ export async function extractWordsFromPhoto(base64Image, anthropicKey) {
 }
 
 // --- OpenAI TTS ---
-export async function generateSpeech(text, openaiKey, voice = 'nova') {
-  const response = await fetch('https://api.openai.com/v1/audio/speech', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${openaiKey}`
-    },
-    body: JSON.stringify({
-      model: 'tts-1',
-      input: text,
-      voice: voice, // nova is friendly and warm
-      response_format: 'mp3'
-    })
-  });
+export async function generateSpeech(text, openaiKey, voice = 'fable') {
+  // Try the newer gpt-4o-mini-tts model first (supports instructions for British accent)
+  // Fall back to tts-1 if it fails
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini-tts',
+        input: text,
+        voice: voice,
+        instructions: 'Speak with a warm, friendly British English accent. You are reading spelling words and funny sentences to an 8-year-old child. Be clear, cheerful, and slightly playful.',
+        response_format: 'mp3'
+      })
+    });
+  } catch (e) {
+    // Fall back to tts-1 if gpt-4o-mini-tts fails
+    response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiKey}`
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        input: text,
+        voice: voice,
+        response_format: 'mp3'
+      })
+    });
+  }
 
   if (!response.ok) {
     const err = await response.text();

@@ -117,6 +117,7 @@ function SplashScreen({ groups, weekData, onSelectGroup, onUpload, onNavigate })
       </div>
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
         <button className="btn btn-outline" onClick={() => onNavigate('tracker')}>📋 Who's practised?</button>
+        <button className="btn btn-outline" onClick={() => onNavigate('upload')}>📤 Upload new words</button>
         <button className="btn btn-outline" onClick={() => onNavigate('settings')}>⚙️ Settings</button>
       </div>
       <p style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--text-light)' }}>Week of {getCurrentWeekId()}</p>
@@ -731,8 +732,26 @@ function App() {
       <SplashScreen groups={groups} weekData={weekData}
         onSelectGroup={(g) => { setSelectedGroup(g); setPage('test'); }}
         onUpload={(g) => { setUploadGroup(g); setPage('upload'); }}
-        onNavigate={setPage} />
+        onNavigate={(p) => {
+          if (p === 'upload') { setPage('pickUploadGroup'); }
+          else setPage(p);
+        }} />
     </div>
+  );
+
+  if (page === 'pickUploadGroup') return (
+    <div className="app-bg"><div className="container page-content">
+      <button className="back-btn" onClick={() => setPage('home')}>← Back</button>
+      <h2 style={{ fontFamily: 'Fredoka', color: 'var(--primary)', marginBottom: '8px' }}>Upload New Words</h2>
+      <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>Which group do you want to upload words for?</p>
+      <div className="group-grid">
+        {groups.map((group) => (
+          <button key={group} className="group-btn ready" onClick={() => { setUploadGroup(group); setPage('upload'); }}>
+            <span>{group}{weekData[group] && <span style={{ display: 'block', fontSize: '0.8rem', fontWeight: 400, opacity: 0.8 }}>Will replace current words</span>}</span>
+          </button>
+        ))}
+      </div>
+    </div></div>
   );
 
   if (page === 'upload') return (
