@@ -220,6 +220,23 @@ export async function getPracticeData(groupName) {
   }
 }
 
+export async function removePracticeEntry(groupName, childName) {
+  if (!db) return;
+  const weekId = getWeekId();
+  const docRef = doc(db, 'practice', `${weekId}_${groupName}`);
+  try {
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return;
+    const existing = snap.data();
+    if (existing.children && existing.children[childName]) {
+      delete existing.children[childName];
+      await setDoc(docRef, existing);
+    }
+  } catch (e) {
+    console.error('Error removing practice entry:', e);
+  }
+}
+
 // --- Children Names ---
 export async function getChildren() {
   if (!db) return [];

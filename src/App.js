@@ -5,7 +5,7 @@ import SoundWave from './components/SoundWave';
 import {
   getStoredFirebaseConfig, saveFirebaseConfig, initFirebase, isFirebaseReady,
   getApiKeys, saveApiKeys, getGroups, saveGroups, getWeekData, saveWeekData,
-  uploadAudio, logPractice, getPracticeData, getChildren,
+  uploadAudio, logPractice, getPracticeData, removePracticeEntry, getChildren,
   saveChildren, getCurrentWeekId, getWeekDisplayDate
 } from './firebase';
 import { generateSpellingContent, extractWordsFromPhoto, generateSpeech } from './services/ai';
@@ -292,8 +292,10 @@ function SpellingTest({ group, data, onFinish, onBack }) {
   const [childrenList, setChildrenList] = useState([]);
   const [newChildName, setNewChildName] = useState('');
   const [isPlayingStory, setIsPlayingStory] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef(null);
   const abortRef = useRef(false);
+  const pauseRef = useRef(false);
 
   const words = data.words;
   const totalWords = words.length;
@@ -314,21 +316,46 @@ function SpellingTest({ group, data, onFinish, onBack }) {
     else if (type === 'spelling') { const l = word.split('').join(', '); await speakText(`${word} is spelt: ${l}. ${word}.`); }
   };
 
-  const startTest = () => { setPhase('playing'); abortRef.current = false; playWord(0); };
+  const startTest = () => { setPhase('playing'); abortRef.current = false; pauseRef.current = false; playWord(0); };
+
+  const togglePause = () => {
+    const newPaused = !isPaused;
+    setIsPaused(newPaused);
+    pauseRef.current = newPaused;
+    if (newPaused) {
+      stopAudio();
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const waitWhilePaused = () => {
+    return new Promise((resolve) => {
+      const check = () => {
+        if (!pauseRef.current) { resolve(); return; }
+        setTimeout(check, 200);
+      };
+      check();
+    });
+  };
 
   const playWord = async (index) => {
     if (abortRef.current || index >= totalWords) { if (index >= totalWords) setPhase('checking'); return; }
+    await waitWhilePaused();
     setCurrentIndex(index);
     const word = words[index];
     setIsPlaying(true);
     await playWordAudio(word, 'word');
     if (abortRef.current) return;
+    await waitWhilePaused();
     await new Promise(r => setTimeout(r, 500));
     if (abortRef.current) return;
+    await waitWhilePaused();
     await playWordAudio(word, 'sentence');
     if (abortRef.current) return;
+    await waitWhilePaused();
     await new Promise(r => setTimeout(r, 500));
     if (abortRef.current) return;
+    await waitWhilePaused();
     await playWordAudio(word, 'repeat');
     if (abortRef.current) return;
     setIsPlaying(false);
@@ -337,6 +364,7 @@ function SpellingTest({ group, data, onFinish, onBack }) {
     await new Promise((resolve) => {
       let remaining = pauseTime;
       timerRef.current = setInterval(() => {
+        if (pauseRef.current) return; // Don't count down while paused
         remaining -= 1; setTimeLeft(remaining);
         if (remaining <= 0 || abortRef.current) { clearInterval(timerRef.current); resolve(); }
       }, 1000);
@@ -423,17 +451,33 @@ function SpellingTest({ group, data, onFinish, onBack }) {
         </div>
         <div className="word-number">{currentIndex + 1}</div>
         <div className="word-display">of {totalWords} words</div>
-        {phase === 'playing' && (<>
-          <div className="status-playing"><SoundWave /> Listening...</div>
-          <div className="timer-ring" style={{ borderColor: 'var(--green)', marginTop: '20px' }}><span style={{ fontSize: '3rem' }}>👂</span></div>
-        </>)}
-        {phase === 'writing' && (<>
-          <div className="status-writing">✏️ Write it down!</div>
-          <div className="timer-ring active"><span className="timer-text">{timeLeft}</span></div>
-        </>)}
-        <button className="btn btn-outline mt-30" onClick={() => {
-          abortRef.current = true; stopAudio(); if (timerRef.current) clearInterval(timerRef.current); setPhase('checking');
-        }}>Skip to checking →</button>
+        {isPaused ? (
+          <>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '12px' }}>⏸️ Paused</div>
+            <div className="timer-ring" style={{ borderColor: 'var(--primary)' }}>
+              <span style={{ fontSize: '3rem' }}>⏸️</span>
+            </div>
+          </>
+        ) : (
+          <>
+            {phase === 'playing' && (<>
+              <div className="status-playing"><SoundWave /> Listening...</div>
+              <div className="timer-ring" style={{ borderColor: 'var(--green)', marginTop: '20px' }}><span style={{ fontSize: '3rem' }}>👂</span></div>
+            </>)}
+            {phase === 'writing' && (<>
+              <div className="status-writing">✏️ Write it down!</div>
+              <div className="timer-ring active"><span className="timer-text">{timeLeft}</span></div>
+            </>)}
+          </>
+        )}
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '30px' }}>
+          <button className="btn btn-primary" onClick={togglePause}>
+            {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+          </button>
+          <button className="btn btn-outline" onClick={() => {
+            abortRef.current = true; stopAudio(); if (timerRef.current) clearInterval(timerRef.current); setPhase('checking');
+          }}>Skip to checking →</button>
+        </div>
       </div>
     </div></div>
   );
@@ -527,14 +571,19 @@ function PracticeTracker({ groups, onBack }) {
   const [practiceData, setPracticeData] = useState({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      const all = {};
-      for (const g of groups) { const d = await getPracticeData(g); if (d) all[g] = d; }
-      setPracticeData(all); setLoading(false);
-    };
-    load();
-  }, [groups]);
+  const loadData = async () => {
+    const all = {};
+    for (const g of groups) { const d = await getPracticeData(g); if (d) all[g] = d; }
+    setPracticeData(all); setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, [groups]);
+
+  const handleRemove = async (groupName, childName) => {
+    if (!window.confirm(`Remove ${childName} from the list? This can't be undone.`)) return;
+    await removePracticeEntry(groupName, childName);
+    await loadData();
+  };
 
   if (loading) return <div className="app-bg"><div className="container"><div className="loading-container"><div className="loading-spinner"></div></div></div></div>;
 
@@ -554,7 +603,12 @@ function PracticeTracker({ groups, onBack }) {
                 {children.map(([name, info]) => (
                   <li key={name} className="tracker-item">
                     <span className="tracker-name">{name}</span>
-                    <span className="tracker-count">{info.attempts} time{info.attempts !== 1 ? 's' : ''} ✓</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="tracker-count">{info.attempts} time{info.attempts !== 1 ? 's' : ''} ✓</span>
+                      <button onClick={() => handleRemove(g, name)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#999', padding: '4px' }}
+                        title="Remove this entry">✕</button>
+                    </span>
                   </li>
                 ))}
               </ul>
